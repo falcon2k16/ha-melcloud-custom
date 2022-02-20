@@ -8,6 +8,13 @@ CONF_LANGUAGE = "language"
 ATTR_STATUS = "status"
 ATTR_VANE_VERTICAL = "vane_vertical"
 ATTR_VANE_HORIZONTAL = "vane_horizontal"
+ATTR_VENTILATION = "ventilation"
+ATTR_ACTUAL_VENTILATION = "actual_ventilation"
+ATTR_FILTER_MAINTENANCE = "filter mainteinance"
+ATTR_CORE_MAINTENANCE = "core_mainteinance"
+ATTR_SUPPLY_VENTILATION = "supply ventilation"
+ATTR_EXHAUST_VENTILATION = "exhaust ventilation"
+
 
 
 class HorSwingModes:
