@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import logging
 from typing import Any, Callable
 
-from pymelcloud import DEVICE_TYPE_ATA, DEVICE_TYPE_ATW
+from pymelcloud import DEVICE_TYPE_ATA, DEVICE_TYPE_ATW, DEVICE_TYPE_ERV
 from pymelcloud.atw_device import Zone
 
 from homeassistant.components.sensor import (
@@ -135,6 +135,52 @@ ATW_ZONE_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
     ),
 )
+ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
+    MelcloudSensorEntityDescription(
+        key="wifi_signal",
+        name="WiFi Signal",
+        icon="mdi:signal",
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        state_class=STATE_CLASS_MEASUREMENT,
+        device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+        value_fn=lambda x: x.wifi_signal,
+        enabled=lambda x: True,
+        entity_registry_enabled_default=True,
+    ),
+    MelcloudSensorEntityDescription(
+        key="room_temperature",
+        name="Room Temperature",
+        icon="mdi:thermometer",
+        native_unit_of_measurement=TEMP_CELSIUS,
+        state_class=STATE_CLASS_MEASUREMENT,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        value_fn=lambda x: x.device.room_temperature,
+        enabled=lambda x: True,
+        entity_registry_enabled_default=True,
+    ),
+    MelcloudSensorEntityDescription(
+        key="outside_temperature",
+        name="Outside Temperature",
+        icon="mdi:thermometer",
+        native_unit_of_measurement=TEMP_CELSIUS,
+        state_class=STATE_CLASS_MEASUREMENT,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        value_fn=lambda x: x.device.outside_temperature,
+        enabled=lambda x: True,
+        entity_registry_enabled_default=True,
+    ),
+    MelcloudSensorEntityDescription(
+        key="energy",
+        name="Energy",
+        icon="mdi:factory",
+        native_unit_of_measurement=ENERGY_KILO_WATT_HOUR,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+        device_class=DEVICE_CLASS_ENERGY,
+        value_fn=lambda x: x.device.total_energy_consumed,
+        enabled=lambda x: x.device.has_energy_consumed_meter,
+        entity_registry_enabled_default=True,
+    ),
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -156,6 +202,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
             MelDeviceSensor(mel_device, description)
             for description in ATW_SENSORS
             for mel_device in mel_devices[DEVICE_TYPE_ATW]
+            if description.enabled(mel_device)
+        ]
+        + [
+            MelDeviceSensor(mel_device, description)
+            for description in ERV_SENSORS
+            for mel_device in mel_devices[DEVICE_TYPE_ERV]
             if description.enabled(mel_device)
         ]
     )

@@ -37,12 +37,12 @@ ATTR_STATE_USERIAL = "serial_number"
 
 ATTR_STATE_DEVICE_UNIT = [
     {
-      ATTR_STATE_UMODEL: "unit",
-      ATTR_STATE_USERIAL: "unit_serial",
+        ATTR_STATE_UMODEL: "unit",
+        ATTR_STATE_USERIAL: "unit_serial",
     },
     {
-      ATTR_STATE_UMODEL: "ext_unit",
-      ATTR_STATE_USERIAL: "ext_unit_serial",
+        ATTR_STATE_UMODEL: "ext_unit",
+        ATTR_STATE_USERIAL: "ext_unit_serial",
     },
 ]
 
@@ -50,26 +50,26 @@ _LOGGER = logging.getLogger(__name__)
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=60)
 
-PLATFORMS = ["climate", "sensor", "binary_sensor"]
+PLATFORMS = ["climate", "sensor", "binary_sensor", "fan"]
 
-MELCLOUD_SCHEMA = vol.Schema({
-    vol.Required(CONF_USERNAME): str,
-    vol.Required(CONF_PASSWORD): str,
-    vol.Required(CONF_LANGUAGE): vol.In(LANGUAGES.keys()),
-})
+MELCLOUD_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_USERNAME): str,
+        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_LANGUAGE): vol.In(LANGUAGES.keys()),
+    }
+)
 
 CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: MELCLOUD_SCHEMA
-    },
+    {DOMAIN: MELCLOUD_SCHEMA},
     extra=vol.ALLOW_EXTRA,
 )
 
-#BASE_URL = "https://app.melcloud.com/Mitsubishi.Wifi.Client"
+# BASE_URL = "https://app.melcloud.com/Mitsubishi.Wifi.Client"
 
 
 class MelCloudAuthentication:
-    def __init__(self, email, password, language = Language.English):
+    def __init__(self, email, password, language=Language.English):
         self._email = email
         self._password = password
         self._language = language
@@ -77,7 +77,7 @@ class MelCloudAuthentication:
 
     def isLogin(self):
         return self._contextkey != None
-        
+
     async def login(self, _session: ClientSession):
         _LOGGER.debug("Login ...")
 
@@ -85,7 +85,7 @@ class MelCloudAuthentication:
 
         if _session is None:
             return False
-            
+
         body = {
             "Email": self._email,
             "Password": self._password,
@@ -99,7 +99,7 @@ class MelCloudAuthentication:
             f"{BASE_URL}/Login/ClientLogin", json=body, raise_for_status=True
         ) as resp:
             req = await resp.json()
-    
+
         if not req is None:
             if "ErrorId" in req and req["ErrorId"] == None:
                 self._contextkey = req.get("LoginData").get("ContextKey")
@@ -108,9 +108,9 @@ class MelCloudAuthentication:
                 _LOGGER.error("MELCloud User/Password invalid!")
         else:
             _LOGGER.error("Login to MELCloud failed!")
-            
+
         return False
-        
+
     def getContextKey(self):
         return self._contextkey
 
@@ -121,7 +121,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         return True
 
     conf = config.get(DOMAIN)
-    
+
     hass.async_create_task(
         hass.config_entries.flow.async_init(
             DOMAIN,
@@ -144,12 +144,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         DOMAIN,
         username,
         language,
-        str(mclanguage)
+        str(mclanguage),
     )
-    
+
     mcauth = MelCloudAuthentication(username, conf[CONF_PASSWORD], mclanguage)
     try:
-        result = await mcauth.login(hass.helpers.aiohttp_client.async_get_clientsession())
+        result = await mcauth.login(
+            hass.helpers.aiohttp_client.async_get_clientsession()
+        )
         if not result:
             raise ConfigEntryNotReady()
     except Exception as ex:
@@ -233,7 +235,9 @@ class MelCloudDevice:
         """Return wifi signal."""
         if self.device._device_conf is None:
             return None
-        return self.device._device_conf.get("Device", {}).get("WifiSignalStrength", None)
+        return self.device._device_conf.get("Device", {}).get(
+            "WifiSignalStrength", None
+        )
 
     @property
     def error_state(self) -> Optional[bool]:
@@ -263,11 +267,13 @@ class MelCloudDevice:
         model = f"MELCloud IF (MAC: {self.device.mac})"
         unit_infos = self.device.units
         if unit_infos is not None:
-            model = model + " - " + ", ".join(
-                [x["model"] for x in unit_infos if x["model"]]
+            model = (
+                model
+                + " - "
+                + ", ".join([x["model"] for x in unit_infos if x["model"]])
             )
         _device_info[ATTR_MODEL] = model
-        
+
         return _device_info
 
     @property
@@ -287,8 +293,12 @@ class MelCloudDevice:
         if unit_infos is not None:
             for i, u in enumerate(unit_infos):
                 if i < 2:
-                    data[ATTR_STATE_DEVICE_UNIT[i][ATTR_STATE_UMODEL]] = u[ATTR_STATE_UMODEL]
-                    data[ATTR_STATE_DEVICE_UNIT[i][ATTR_STATE_USERIAL]] = u[ATTR_STATE_USERIAL]
+                    data[ATTR_STATE_DEVICE_UNIT[i][ATTR_STATE_UMODEL]] = u[
+                        ATTR_STATE_UMODEL
+                    ]
+                    data[ATTR_STATE_DEVICE_UNIT[i][ATTR_STATE_USERIAL]] = u[
+                        ATTR_STATE_USERIAL
+                    ]
             self._extra_attributes = data
 
         return data

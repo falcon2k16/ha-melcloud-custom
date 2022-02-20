@@ -4,7 +4,9 @@
 [![](https://img.shields.io/badge/MAINTAINER-%40ollo69-red?style=for-the-badge)](https://github.com/ollo69)
 [![](https://img.shields.io/badge/COMMUNITY-FORUM-success?style=for-the-badge)](https://community.home-assistant.io)
 
-# MELCloud HomeAssistant custom component
+# MELCloud HomeAssistant custom component - fork
+Fork of ollo69 ("https://github.com/ollo69/ha-melcloud-custom") with updates for ERV's
+
 A full featured Homeassistant custom component to drive MELCloud ATA and ATW devices.
 
 This custom component is based on the native Home Assistant [MELCloud component](https://github.com/home-assistant/core/tree/dev/homeassistant/components/melcloud) released with version 0.106 and on the same underlying [PyMelCloud library](https://github.com/vilppuvuorinen/pymelcloud).
@@ -26,7 +28,7 @@ I just added some features to the existing native components, waiting for the sa
 You can install this component in two ways: via HACS or manually.
 
 ### Option A: Installing via HACS
-If you have HACS, you must add this repository ("https://github.com/ollo69/ha-melcloud-custom") to your Custom Repository selecting the Configuration Tab in the HACS page.
+If you have HACS, you must add this repository ("https://github.com/falcon2k16/ha-melcloud-custom") to your Custom Repository selecting the Configuration Tab in the HACS page.
 After this you can go in the Integration Tab and search the "MELCloud Custom" component to install it.
 
 ### Option B: Manually installation (custom_component)

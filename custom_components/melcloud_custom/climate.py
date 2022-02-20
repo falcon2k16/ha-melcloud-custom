@@ -38,8 +38,8 @@ from .const import (
     ATTR_STATUS,
     ATTR_VANE_VERTICAL,
     ATTR_VANE_HORIZONTAL,
-    DOMAIN, 
-    MEL_DEVICES, 
+    DOMAIN,
+    MEL_DEVICES,
     HorSwingModes,
     VertSwingModes,
 )
@@ -85,8 +85,8 @@ ATA_HVAC_HVANE_REVERSE_LOOKUP = {v: k for k, v in ATA_HVAC_HVANE_LOOKUP.items()}
 
 
 ATW_ZONE_HVAC_MODE_LOOKUP = {
-    atw.ZONE_OPERATION_MODE_HEAT: HVAC_MODE_HEAT,
-    atw.ZONE_OPERATION_MODE_COOL: HVAC_MODE_COOL,
+    atw.ZONE_OPERATION_MODE_HEAT_THERMOSTAT: HVAC_MODE_HEAT,
+    atw.ZONE_OPERATION_MODE_COOL_THERMOSTAT: HVAC_MODE_COOL,
 }
 ATW_ZONE_HVAC_MODE_REVERSE_LOOKUP = {v: k for k, v in ATW_ZONE_HVAC_MODE_LOOKUP.items()}
 
@@ -216,7 +216,11 @@ class AtaDeviceClimate(MelCloudClimate):
     async def async_set_temperature(self, **kwargs) -> None:
         """Set new target temperature."""
         await self._device.set(
-            {ata.PROPERTY_TARGET_TEMPERATURE: kwargs.get("temperature", self.target_temperature)}
+            {
+                ata.PROPERTY_TARGET_TEMPERATURE: kwargs.get(
+                    "temperature", self.target_temperature
+                )
+            }
         )
 
     @property
@@ -245,7 +249,7 @@ class AtaDeviceClimate(MelCloudClimate):
             mode = self._device.vane_vertical
             if mode is not None:
                 swing = ATA_HVAC_VVANE_LOOKUP.get(mode)
-            
+
         if swing is None:
             return "Auto"
 
