@@ -183,6 +183,16 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         enabled=lambda x: x.device.has_energy_consumed_meter,
         entity_registry_enabled_default=True,
     ),
+    MelcloudSensorEntityDescription(
+        key="ventilation_mode",
+        name="Ventilation Mode",
+        native_unit_of_measurement="",
+        icon="mdi:air-filter",
+        device_class=SensorDeviceClass.ENUM,
+        value_fn=lambda x: x.device.actual_ventilation_mode,
+        enabled=lambda x: True,
+        entity_registry_enabled_default=True,
+    ),
 )
 
 _LOGGER = logging.getLogger(__name__)

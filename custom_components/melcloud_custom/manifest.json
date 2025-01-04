@@ -4,9 +4,12 @@
   "config_flow": true,
   "documentation": "https://github.com/falcon2k16/ha-melcloud-custom",
   "issue_tracker": "https://github.com/falcon2k16/ha-melcloud-custom/issues",
-  "requirements": ["pymelcloud==2.11.0"],
-  "codeowners": ["@falcon2k16"],
+  "requirements": [
+    "pymelcloud==2.11.0"
+  ],
+  "codeowners": [
+    "@falcon2k16"
+  ],
   "iot_class": "cloud_polling",
-  "integration_type": "hub",
   "version": "0.1.20"
 }
