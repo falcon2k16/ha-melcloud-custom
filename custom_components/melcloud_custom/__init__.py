@@ -1,26 +1,38 @@
 """The MELCloud Climate integration."""
+
+from __future__ import annotations
+
 import asyncio
 from datetime import timedelta
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from aiohttp import ClientConnectionError, ClientSession
-from async_timeout import timeout
+from aiohttp import ClientConnectionError, ClientResponseError
 from pymelcloud import Device, get_devices
+from pymelcloud.atw_device import Zone
 from pymelcloud.client import BASE_URL
 import voluptuous as vol
 
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
-from homeassistant.const import ATTR_MODEL, CONF_USERNAME, CONF_PASSWORD
+from homeassistant.const import (
+    ATTR_MODEL,
+    CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
+    CONF_TOKEN,
+    CONF_USERNAME,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.util import Throttle
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_LANGUAGE,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     LANGUAGES,
     MEL_DEVICES,
@@ -48,9 +60,14 @@ ATTR_STATE_DEVICE_UNIT = [
 
 _LOGGER = logging.getLogger(__name__)
 
-MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=60)
+SCAN_INTERVAL = timedelta(minutes=15)
 
-PLATFORMS = ["climate", "sensor", "binary_sensor", "fan"]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.CLIMATE,
+    Platform.SENSOR,
+    Platform.WATER_HEATER,
+]
 
 MELCLOUD_SCHEMA = vol.Schema(
     {
@@ -69,50 +86,84 @@ CONFIG_SCHEMA = vol.Schema(
 
 
 class MelCloudAuthentication:
+    """Manage authentication to MelCloud retrieving a valid token."""
+
     def __init__(self, email, password, language=Language.English):
+        """Init MelCloudAuthentication."""
         self._email = email
         self._password = password
         self._language = language
-        self._contextkey = None
+        self._context_key = None
 
-    def isLogin(self):
-        return self._contextkey != None
-
-    async def login(self, _session: ClientSession):
+    async def login(self, hass: HomeAssistant):
+        """Try login MelCloud with provided credential."""
         _LOGGER.debug("Login ...")
 
-        self._contextkey = None
-
-        if _session is None:
-            return False
+        self._context_key = None
+        session = async_get_clientsession(hass)
 
         body = {
             "Email": self._email,
             "Password": self._password,
             "Language": self._language,
             "AppVersion": "1.19.1.1",
-            "Persist": False,
+            "Persist": True,
             "CaptchaResponse": None,
         }
 
-        async with _session.post(
+        async with session.post(
             f"{BASE_URL}/Login/ClientLogin", json=body, raise_for_status=True
         ) as resp:
             req = await resp.json()
 
-        if not req is None:
-            if "ErrorId" in req and req["ErrorId"] == None:
-                self._contextkey = req.get("LoginData").get("ContextKey")
-                return True
-            else:
-                _LOGGER.error("MELCloud User/Password invalid!")
-        else:
-            _LOGGER.error("Login to MELCloud failed!")
+        if req is not None:
+            if "ErrorId" in req:
+                if req["ErrorId"] is not None:
+                    _LOGGER.error("MELCloud User/Password invalid!")
+                    return False
+                if "LoginData" in req:
+                    if context_key := req["LoginData"].get("ContextKey"):
+                        self._context_key = context_key
+                        return True
 
+        _LOGGER.error("Login to MELCloud failed!")
         return False
 
-    def getContextKey(self):
-        return self._contextkey
+    @property
+    def auth_token(self):
+        """Get the authorization token."""
+        return self._context_key
+
+
+async def _async_migrate_config(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Migrate config entry storing token instead of username and password"""
+    conf = entry.data
+    username = conf[CONF_USERNAME]
+    language = conf[CONF_LANGUAGE]
+    mc_language = LANGUAGES[language]
+
+    _LOGGER.info(
+        "Migrating %s platform config with user: %s - language: %s(%s).",
+        DOMAIN,
+        username,
+        language,
+        str(mc_language),
+    )
+
+    mcauth = MelCloudAuthentication(username, conf[CONF_PASSWORD], mc_language)
+    try:
+        async with asyncio.timeout(10):
+            if not await mcauth.login(hass):
+                raise ConfigEntryNotReady()
+    except Exception as ex:
+        raise ConfigEntryNotReady() from ex
+
+    token = mcauth.auth_token
+    hass.config_entries.async_update_entry(entry, data={CONF_TOKEN: token})
+    return token
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType):
@@ -135,85 +186,109 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Establish connection with MELCloud."""
     conf = entry.data
-    username = conf[CONF_USERNAME]
-    language = conf[CONF_LANGUAGE]
-    mclanguage = LANGUAGES[language]
+    if CONF_TOKEN not in conf:
+        token = await _async_migrate_config(hass, entry)
+    else:
+        token = conf[CONF_TOKEN]
 
-    _LOGGER.info(
-        "Initializing %s platform with user: %s - language: %s(%s).",
-        DOMAIN,
-        username,
-        language,
-        str(mclanguage),
+    update_seconds = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    _LOGGER.info("Configured scan interval: %s seconds", update_seconds)
+
+    mel_devices = await mel_devices_setup(
+        hass, token, timedelta(seconds=update_seconds)
     )
 
-    mcauth = MelCloudAuthentication(username, conf[CONF_PASSWORD], mclanguage)
-    try:
-        result = await mcauth.login(
-            hass.helpers.aiohttp_client.async_get_clientsession()
-        )
-        if not result:
-            raise ConfigEntryNotReady()
-    except Exception as ex:
-        raise ConfigEntryNotReady() from ex
-
-    token = mcauth.getContextKey()
-    mel_devices = await mel_devices_setup(hass, token)
+    entry.async_on_unload(entry.add_update_listener(update_listener))
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {}).update(
         {
             MEL_DEVICES: mel_devices,
         }
     )
-    hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(
+    if unload_ok := await hass.config_entries.async_unload_platforms(
         config_entry, PLATFORMS
-    )
-    if unload_ok:
+    ):
         hass.data[DOMAIN].pop(config_entry.entry_id)
-    if not hass.data[DOMAIN]:
-        hass.data.pop(DOMAIN)
+        if not hass.data[DOMAIN]:
+            hass.data.pop(DOMAIN)
+
     return unload_ok
+
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Update when config_entry options update."""
+    update_seconds = entry.options[CONF_SCAN_INTERVAL]
+    update_interval = timedelta(seconds=update_seconds)
+    _LOGGER.info("Setting update interval to %s seconds", update_seconds)
+
+    mel_devices: dict[str, list[MelCloudDevice]] = hass.data[DOMAIN][
+        entry.entry_id
+    ].get(MEL_DEVICES, {})
+    for mel_devices_type in mel_devices.values():
+        for mel_device in mel_devices_type:
+            mel_device.set_coordinator_update_interval(update_interval)
 
 
 class MelCloudDevice:
     """MELCloud Device instance."""
 
-    def __init__(self, device: Device):
+    def __init__(self, device: Device) -> None:
         """Construct a device wrapper."""
         self.device = device
         self.name = device.name
-        self._available = True
         self._extra_attributes = None
+        self._dev_conf = None
+        self._coordinator: DataUpdateCoordinator | None = None
 
-    @Throttle(MIN_TIME_BETWEEN_UPDATES)
-    async def async_update(self, **kwargs):
+    async def _async_update(self):
         """Pull the latest data from MELCloud."""
-        try:
-            await self.device.update()
-            self._available = True
-        except ClientConnectionError:
-            _LOGGER.warning("Connection failed for %s", self.name)
-            self._available = False
+        self._dev_conf = None
+        await self.device.update()
+
+    async def async_create_coordinator(
+        self, hass: HomeAssistant, update_interval: timedelta
+    ) -> None:
+        """Get the coordinator for a specific device."""
+        if self._coordinator:
+            return
+
+        coordinator = DataUpdateCoordinator(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}-{self.name or self.device_id}",
+            update_method=self._async_update,
+            # Polling interval. Will only be polled if there are subscribers.
+            update_interval=update_interval,
+        )
+        await coordinator.async_refresh()
+        self._coordinator = coordinator
+
+    def set_coordinator_update_interval(self, update_interval: timedelta):
+        """Update coordinator update interval."""
+        if self._coordinator:
+            self._coordinator.update_interval = update_interval
+            self._coordinator.async_set_updated_data(None)
 
     async def async_set(self, properties: Dict[str, Any]):
         """Write state changes to the MELCloud API."""
         try:
             await self.device.set(properties)
-            self._available = True
-        except ClientConnectionError:
-            _LOGGER.warning("Connection failed for %s", self.name)
-            self._available = False
+        except (ClientConnectionError, ClientResponseError):
+            _LOGGER.warning("Set status failed for %s", self.name)
+            return
+        if self._coordinator:
+            self._coordinator.async_set_updated_data(None)
 
     @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._available
+    def coordinator(self) -> DataUpdateCoordinator | None:
+        """Return coordinator associated."""
+        return self._coordinator
 
     @property
     def device_id(self):
@@ -228,53 +303,58 @@ class MelCloudDevice:
     @property
     def device_conf(self):
         """Return device_conf of the device."""
-        return self.device._device_conf
+        if self._dev_conf is None:
+            dev_conf = self.device._device_conf
+            if dev_conf is None:
+                self._dev_conf = {}
+            else:
+                self._dev_conf = dev_conf.get("Device", {})
+        return self._dev_conf
 
     @property
     def wifi_signal(self) -> Optional[int]:
         """Return wifi signal."""
-        if self.device._device_conf is None:
-            return None
-        return self.device._device_conf.get("Device", {}).get(
-            "WifiSignalStrength", None
-        )
+        return self.device_conf.get("WifiSignalStrength")
 
     @property
     def error_state(self) -> Optional[bool]:
         """Return error_state."""
-        if self.device._device_conf is None:
+        if not self.device_conf:
             return None
-        device = self.device._device_conf.get("Device", {})
-        return device.get("HasError", False)
+        return self.device_conf.get("HasError", False)
 
     @property
     def has_wide_van(self) -> Optional[bool]:
         """Return has wide van info."""
-        if self.device._device_conf is None:
-            return False
-        device = self.device._device_conf.get("Device", {})
-        return device.get("HasWideVane", False)
+        return self.device_conf.get("HasWideVane", False)
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return a device description for device registry."""
         _device_info = DeviceInfo(
+            connections={(CONNECTION_NETWORK_MAC, self.device.mac)},
             identifiers={(DOMAIN, f"{self.device.mac}-{self.device.serial}")},
             manufacturer="Mitsubishi Electric",
             name=self.name,
-            connections={(CONNECTION_NETWORK_MAC, self.device.mac)},
         )
-        model = f"MELCloud IF (MAC: {self.device.mac})"
-        unit_infos = self.device.units
-        if unit_infos is not None:
-            model = (
-                model
-                + " - "
-                + ", ".join([x["model"] for x in unit_infos if x["model"]])
-            )
+        if (unit_infos := self.device.units) is not None:
+            model = ", ".join([x["model"] for x in unit_infos if x["model"]])
+        else:
+            model = "MELCloud IF"
         _device_info[ATTR_MODEL] = model
 
         return _device_info
+
+    def zone_device_info(self, zone: Zone) -> DeviceInfo:
+        """Return a zone device description for device registry."""
+        dev = self.device
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{dev.mac}-{dev.serial}-{zone.zone_index}")},
+            manufacturer="Mitsubishi Electric",
+            model="ATW zone device",
+            name=f"{self.name} {zone.name}",
+            via_device=(DOMAIN, f"{dev.mac}-{dev.serial}"),
+        )
 
     @property
     def extra_attributes(self):
@@ -304,21 +384,28 @@ class MelCloudDevice:
         return data
 
 
-async def mel_devices_setup(hass, token) -> Dict[str, List[MelCloudDevice]]:
+async def mel_devices_setup(
+    hass: HomeAssistant, token: str, update_interval: timedelta
+) -> dict[str, list[MelCloudDevice]]:
     """Query connected devices from MELCloud."""
-    session = hass.helpers.aiohttp_client.async_get_clientsession()
+    session = async_get_clientsession(hass)
     try:
-        with timeout(10):
+        async with asyncio.timeout(10):
             all_devices = await get_devices(
                 token,
                 session,
-                conf_update_interval=timedelta(minutes=5),
-                device_set_debounce=timedelta(seconds=1),
+                conf_update_interval=timedelta(minutes=30),
+                device_set_debounce=timedelta(seconds=2),
             )
-    except (asyncio.TimeoutError, ClientConnectionError) as ex:
+    except (asyncio.TimeoutError, ClientConnectionError, ClientResponseError) as ex:
         raise ConfigEntryNotReady() from ex
 
-    wrapped_devices = {}
+    wrapped_devices: dict[str, list[MelCloudDevice]] = {}
     for device_type, devices in all_devices.items():
-        wrapped_devices[device_type] = [MelCloudDevice(device) for device in devices]
+        wrapped_types = []
+        for device in devices:
+            mel_device = MelCloudDevice(device)
+            await mel_device.async_create_coordinator(hass, update_interval)
+            wrapped_types.append(mel_device)
+        wrapped_devices[device_type] = wrapped_types
     return wrapped_devices

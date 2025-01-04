@@ -7,5 +7,6 @@
   "requirements": ["pymelcloud==2.11.0"],
   "codeowners": ["@falcon2k16"],
   "iot_class": "cloud_polling",
+  "integration_type": "hub",
   "version": "0.1.20"
 }

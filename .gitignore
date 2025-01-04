@@ -1,8 +1,18 @@
+# artifacts
+__pycache__
+.pytest*
+.cache
+*.egg-info
+*/build/*
+*/dist/*
 
-.idea/ha-melcloud-custom.iml
-.idea/inspectionProfiles/profiles_settings.xml
-.idea/inspectionProfiles/Project_Default.xml
-.idea/misc.xml
-.idea/modules.xml
-.idea/vcs.xml
-.idea/workspace.xml
+# pycharm
+.idea/
+
+# Unit test / coverage reports
+.coverage
+coverage.xml
+
+# Home Assistant configuration
+config/*
+!config/configuration.yaml

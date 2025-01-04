@@ -1,7 +1,8 @@
 {
     "config": {
         "abort": {
-            "already_configured": "MELCloud integration already configured for this email. Access password has been refreshed."
+            "already_configured": "MELCloud integration already configured for this email. Access password has been refreshed.",
+            "already_imported": "MELCloud integration already imported for this email. Configuration aborted."
         },
         "error": {
             "cannot_connect": "Failed to connect, please try again",
@@ -18,8 +19,16 @@
                 "description": "Connect using your MELCloud account.",
                 "title": "Connect to MELCloud"
             }
-        },
-        "title": "MELCloud Custom"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "scan_interval": "Seconds between requests to MelCloud services"
+                }
+            }
+        }
     }
 }
 
