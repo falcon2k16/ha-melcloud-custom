@@ -16,6 +16,8 @@ ATTR_SUPPLY_VENTILATION = "supply ventilation"
 ATTR_EXHAUST_VENTILATION = "exhaust ventilation"
 
 
+DEFAULT_SCAN_INTERVAL = 900
+
 
 class HorSwingModes:
     """Horizontal swing modes names."""
@@ -74,30 +76,30 @@ class Language:
 
 
 LANGUAGES = {
-    'EN': Language.English,
-    'BG': Language.Bulgarian,
-    'CS': Language.Czech,
-    'DA': Language.Danish,
-    'DE': Language.German,
-    'ET': Language.Estonian,
-    'ES': Language.Spanish,
-    'FR': Language.French,
-    'HY': Language.Armenian,
-    'LV': Language.Latvian,
-    'LT': Language.Lithuanian,
-    'HU': Language.Hungarian,
-    'NL': Language.Dutch,
-    'NO': Language.Norwegian,
-    'PL': Language.Polish,
-    'PT': Language.Portuguese,
-    'RU': Language.Russian,
-    'FI': Language.Finnish,
-    'SV': Language.Swedish,
-    'IT': Language.Italian,
-    'UK': Language.Ukrainian,
-    'TR': Language.Turkish,
-    'EL': Language.Greek,
-    'HR': Language.Croatian,
-    'RO': Language.Romanian,
-    'SL': Language.Slovenian,
+    "EN": Language.English,
+    "BG": Language.Bulgarian,
+    "CS": Language.Czech,
+    "DA": Language.Danish,
+    "DE": Language.German,
+    "EL": Language.Greek,
+    "ES": Language.Spanish,
+    "ET": Language.Estonian,
+    "FI": Language.Finnish,
+    "FR": Language.French,
+    "HR": Language.Croatian,
+    "HU": Language.Hungarian,
+    "HY": Language.Armenian,
+    "IT": Language.Italian,
+    "LV": Language.Latvian,
+    "LT": Language.Lithuanian,
+    "NL": Language.Dutch,
+    "NO": Language.Norwegian,
+    "PL": Language.Polish,
+    "PT": Language.Portuguese,
+    "RO": Language.Romanian,
+    "RU": Language.Russian,
+    "SL": Language.Slovenian,
+    "SV": Language.Swedish,
+    "TR": Language.Turkish,
+    "UK": Language.Ukrainian,
 }
