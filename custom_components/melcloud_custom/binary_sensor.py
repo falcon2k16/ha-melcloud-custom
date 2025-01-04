@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import collections.abc
 from dataclasses import dataclass
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from pymelcloud import DEVICE_TYPE_ATA
 
@@ -26,8 +27,8 @@ from .const import DOMAIN, MEL_DEVICES
 class MelcloudRequiredKeysMixin:
     """Mixin for required keys."""
 
-    value_fn: Callable[[Any], bool]
-    enabled: Callable[[Any], bool]
+    value_fn: collections.abc.Callable[[Any], bool]
+    enabled: collections.abc.Callable[[Any], bool]
 
 
 @dataclass

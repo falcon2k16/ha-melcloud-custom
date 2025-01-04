@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import collections.abc
 from dataclasses import dataclass
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from pymelcloud import DEVICE_TYPE_ATA, DEVICE_TYPE_ATW, DEVICE_TYPE_ERV
 from pymelcloud.atw_device import Zone
@@ -33,8 +34,8 @@ from .const import DOMAIN, MEL_DEVICES
 class MelcloudRequiredKeysMixin:
     """Mixin for required keys."""
 
-    value_fn: Callable[[Any], float]
-    enabled: Callable[[Any], bool]
+    value_fn: collections.abc.Callable[[Any], float]
+    enabled: collections.abc.Callable[[Any], bool]
 
 
 @dataclass
@@ -143,8 +144,8 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         name="WiFi Signal",
         icon="mdi:signal",
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         value_fn=lambda x: x.wifi_signal,
         enabled=lambda x: True,
         entity_registry_enabled_default=True,
@@ -153,9 +154,9 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         key="room_temperature",
         name="Room Temperature",
         icon="mdi:thermometer",
-        native_unit_of_measurement=TEMP_CELSIUS,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
         value_fn=lambda x: x.device.room_temperature,
         enabled=lambda x: True,
         entity_registry_enabled_default=True,
@@ -164,9 +165,9 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         key="outside_temperature",
         name="Outside Temperature",
         icon="mdi:thermometer",
-        native_unit_of_measurement=TEMP_CELSIUS,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
         value_fn=lambda x: x.device.outside_temperature,
         enabled=lambda x: True,
         entity_registry_enabled_default=True,
@@ -175,9 +176,9 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         key="energy",
         name="Energy",
         icon="mdi:factory",
-        native_unit_of_measurement=ENERGY_KILO_WATT_HOUR,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
-        device_class=DEVICE_CLASS_ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
         value_fn=lambda x: x.device.total_energy_consumed,
         enabled=lambda x: x.device.has_energy_consumed_meter,
         entity_registry_enabled_default=True,

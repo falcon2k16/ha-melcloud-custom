@@ -76,8 +76,8 @@ ATA_HVAC_HVANE_REVERSE_LOOKUP = {v: k for k, v in ATA_HVAC_HVANE_LOOKUP.items()}
 
 
 ATW_ZONE_HVAC_MODE_LOOKUP = {
-    atw.ZONE_OPERATION_MODE_HEAT: HVACMode.HEAT,
-    atw.ZONE_OPERATION_MODE_COOL: HVACMode.COOL,
+    atw.ZONE_OPERATION_MODE_HEAT_THERMOSTAT: HVACMode.HEAT,
+    atw.ZONE_OPERATION_MODE_COOL_THERMOSTAT: HVACMode.COOL,
 }
 ATW_ZONE_HVAC_MODE_REVERSE_LOOKUP = {v: k for k, v in ATW_ZONE_HVAC_MODE_LOOKUP.items()}
 
@@ -172,14 +172,12 @@ class AtaDeviceClimate(MelCloudClimate):
         vane_horizontal = self._device.vane_horizontal
         if vane_horizontal:
             attr.update(
-                {ATTR_VANE_HORIZONTAL: ATA_HVAC_HVANE_LOOKUP.get(vane_horizontal, None)}
+                {ATTR_VANE_HORIZONTAL: ATA_HVAC_HVANE_LOOKUP.get(vane_horizontal)}
             )
 
         vane_vertical = self._device.vane_vertical
         if vane_vertical:
-            attr.update(
-                {ATTR_VANE_VERTICAL: ATA_HVAC_VVANE_LOOKUP.get(vane_vertical, None)}
-            )
+            attr.update({ATTR_VANE_VERTICAL: ATA_HVAC_VVANE_LOOKUP.get(vane_vertical)})
         return attr
 
     @property

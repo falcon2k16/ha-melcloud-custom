@@ -65,6 +65,7 @@ SCAN_INTERVAL = timedelta(minutes=15)
 PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.CLIMATE,
+    Platform.FAN,
     Platform.SENSOR,
     Platform.WATER_HEATER,
 ]
@@ -97,7 +98,7 @@ class MelCloudAuthentication:
 
     async def login(self, hass: HomeAssistant):
         """Try login MelCloud with provided credential."""
-        _LOGGER.debug("Login ...")
+        _LOGGER.debug("Login")
 
         self._context_key = None
         session = async_get_clientsession(hass)
@@ -139,14 +140,14 @@ async def _async_migrate_config(
     hass: HomeAssistant,
     entry: ConfigEntry,
 ) -> None:
-    """Migrate config entry storing token instead of username and password"""
+    """Migrate config entry storing token instead of username and password."""
     conf = entry.data
     username = conf[CONF_USERNAME]
     language = conf[CONF_LANGUAGE]
     mc_language = LANGUAGES[language]
 
     _LOGGER.info(
-        "Migrating %s platform config with user: %s - language: %s(%s).",
+        "Migrating %s platform config with user: %s - language: %s(%s)",
         DOMAIN,
         username,
         language,
@@ -157,9 +158,9 @@ async def _async_migrate_config(
     try:
         async with asyncio.timeout(10):
             if not await mcauth.login(hass):
-                raise ConfigEntryNotReady()
+                raise ConfigEntryNotReady
     except Exception as ex:
-        raise ConfigEntryNotReady() from ex
+        raise ConfigEntryNotReady from ex
 
     token = mcauth.auth_token
     hass.config_entries.async_update_entry(entry, data={CONF_TOKEN: token})
@@ -397,8 +398,8 @@ async def mel_devices_setup(
                 conf_update_interval=timedelta(minutes=30),
                 device_set_debounce=timedelta(seconds=2),
             )
-    except (asyncio.TimeoutError, ClientConnectionError, ClientResponseError) as ex:
-        raise ConfigEntryNotReady() from ex
+    except TimeoutError as ex:
+        raise ConfigEntryNotReady from ex
 
     wrapped_devices: dict[str, list[MelCloudDevice]] = {}
     for device_type, devices in all_devices.items():
