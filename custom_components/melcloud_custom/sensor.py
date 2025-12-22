@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import collections.abc
-from dataclasses import dataclass
-import logging
+from collections.abc import Callable
+import dataclasses
 from typing import Any
 
 from pymelcloud import DEVICE_TYPE_ATA, DEVICE_TYPE_ATW, DEVICE_TYPE_ERV
@@ -30,19 +29,12 @@ from . import MelCloudDevice
 from .const import DOMAIN, MEL_DEVICES
 
 
-@dataclass
-class MelcloudRequiredKeysMixin:
-    """Mixin for required keys."""
-
-    value_fn: collections.abc.Callable[[Any], float]
-    enabled: collections.abc.Callable[[Any], bool]
-
-
-@dataclass
-class MelcloudSensorEntityDescription(
-    SensorEntityDescription, MelcloudRequiredKeysMixin
-):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class MelcloudSensorEntityDescription(SensorEntityDescription):
     """Describes Melcloud sensor entity."""
+
+    value_fn: Callable[[Any], float]
+    enabled: Callable[[Any], bool]
 
 
 ATA_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
@@ -55,7 +47,6 @@ ATA_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda x: x.wifi_signal,
         enabled=lambda x: True,
-        entity_registry_enabled_default=False,
     ),
     MelcloudSensorEntityDescription(
         key="room_temperature",
@@ -66,7 +57,6 @@ ATA_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda x: x.device.room_temperature,
         enabled=lambda x: True,
-        entity_registry_enabled_default=False,
     ),
     MelcloudSensorEntityDescription(
         key="energy",
@@ -77,7 +67,6 @@ ATA_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda x: x.device.total_energy_consumed,
         enabled=lambda x: x.device.has_energy_consumed_meter,
-        entity_registry_enabled_default=False,
     ),
 )
 ATW_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
@@ -90,7 +79,6 @@ ATW_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda x: x.device.outside_temperature,
         enabled=lambda x: True,
-        entity_registry_enabled_default=False,
     ),
     MelcloudSensorEntityDescription(
         key="tank_temperature",
@@ -113,7 +101,6 @@ ATW_ZONE_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda zone: zone.room_temperature,
         enabled=lambda x: True,
-        entity_registry_enabled_default=False,
     ),
     MelcloudSensorEntityDescription(
         key="flow_temperature",
@@ -124,7 +111,6 @@ ATW_ZONE_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda zone: zone.flow_temperature,
         enabled=lambda x: True,
-        entity_registry_enabled_default=False,
     ),
     MelcloudSensorEntityDescription(
         key="return_temperature",
@@ -135,7 +121,6 @@ ATW_ZONE_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda zone: zone.return_temperature,
         enabled=lambda x: True,
-        entity_registry_enabled_default=False,
     ),
 )
 ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
@@ -148,29 +133,26 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         value_fn=lambda x: x.wifi_signal,
         enabled=lambda x: True,
-        entity_registry_enabled_default=True,
     ),
     MelcloudSensorEntityDescription(
         key="room_temperature",
         name="Room Temperature",
-        icon="mdi:thermometer",
+        icon="mdi:home-thermomete",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.TEMPERATURE,
         value_fn=lambda x: x.device.room_temperature,
         enabled=lambda x: True,
-        entity_registry_enabled_default=True,
     ),
     MelcloudSensorEntityDescription(
         key="outside_temperature",
         name="Outside Temperature",
-        icon="mdi:thermometer",
+        icon="mdi:home-thermometer-outline",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.TEMPERATURE,
         value_fn=lambda x: x.device.outside_temperature,
         enabled=lambda x: True,
-        entity_registry_enabled_default=True,
     ),
     MelcloudSensorEntityDescription(
         key="energy",
@@ -181,7 +163,6 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         value_fn=lambda x: x.device.total_energy_consumed,
         enabled=lambda x: x.device.has_energy_consumed_meter,
-        entity_registry_enabled_default=True,
     ),
     MelcloudSensorEntityDescription(
         key="ventilation_mode",
@@ -193,10 +174,25 @@ ERV_SENSORS: tuple[MelcloudSensorEntityDescription, ...] = (
         enabled=lambda x: True,
         entity_registry_enabled_default=True,
     ),
+    MelcloudSensorEntityDescription(
+        key="supply_fan_speed",
+        name="Supply Fan Speed",
+        native_unit_of_measurement="",
+        icon="mdi:fan",
+        device_class=SensorDeviceClass.ENUM,
+        value_fn=lambda x: x.device.actual_supply_fan_speed,
+        enabled=lambda x: True,
+    ),
+    MelcloudSensorEntityDescription(
+        key="exhaust_fan_speed",
+        name="Exhaust Fan Speed",
+        native_unit_of_measurement="",
+        icon="mdi:fan",
+        device_class=SensorDeviceClass.ENUM,
+        value_fn=lambda x: x.device.actual_exhaust_fan_speed,
+        enabled=lambda x: True,
+    ),
 )
-
-_LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -205,24 +201,23 @@ async def async_setup_entry(
     entry_config = hass.data[DOMAIN][entry.entry_id]
 
     mel_devices = entry_config.get(MEL_DEVICES)
-    entities = []
-    entities.extend(
+    entities: list[MelDeviceSensor] = (
         [
             MelDeviceSensor(mel_device, description)
             for description in ATA_SENSORS
-            for mel_device in mel_devices[DEVICE_TYPE_ATA]
+            for mel_device in mel_devices.get(DEVICE_TYPE_ATA, [])
             if description.enabled(mel_device)
         ]
         + [
             MelDeviceSensor(mel_device, description)
             for description in ATW_SENSORS
-            for mel_device in mel_devices[DEVICE_TYPE_ATW]
+            for mel_device in mel_devices.get(DEVICE_TYPE_ATW, [])
             if description.enabled(mel_device)
         ]
         + [
             MelDeviceSensor(mel_device, description)
             for description in ERV_SENSORS
-            for mel_device in mel_devices[DEVICE_TYPE_ERV]
+            for mel_device in mel_devices.get(DEVICE_TYPE_ERV, [])
             if description.enabled(mel_device)
         ]
     )
@@ -275,13 +270,16 @@ class AtwZoneSensor(MelDeviceSensor):
     ) -> None:
         """Initialize the sensor."""
         if zone.zone_index != 1:
-            description.key = f"{description.key}-zone-{zone.zone_index}"
+            description = dataclasses.replace(
+                description,
+                key = f"{description.key}-zone-{zone.zone_index}"
+            )
         super().__init__(api, description)
 
         self._attr_device_info = api.zone_device_info(zone)
         self._zone = zone
 
     @property
-    def native_value(self):
+    def native_value(self) -> float | None:
         """Return zone based state."""
         return self.entity_description.value_fn(self._zone)

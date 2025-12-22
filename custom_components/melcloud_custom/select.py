@@ -29,15 +29,31 @@ async def async_setup_entry(
 
 
 class ErvVentilationModeSelect(SelectEntity):
-    """ERV fan device."""
+    """ERV ventilation mode selector."""
+
+    _attr_should_poll = False
 
     def __init__(self, device: MelCloudDevice, erv_device: ErvDevice) -> None:
-        """Initialize the fan."""
+        """Initialize the ventilation mode selector."""
         self.api = device
         self._base_device = self.api.device
         self._device = erv_device
         self._attr_name = f"{self._device.name} Ventilation Mode"
         self._attr_unique_id = f"{erv_device.serial}-{erv_device.mac}_ventilation_mode"
+
+    @property
+    def device_info(self):
+        """Return a device description for device registry."""
+        return self.api.device_info
+
+    async def async_update(self) -> None:
+        """Update state from the coordinator."""
+        await self.api.coordinator.async_request_refresh()
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the currently selected ventilation mode."""
+        return self._device.ventilation_mode
 
     @property
     def state(self) -> StateType:
@@ -53,3 +69,4 @@ class ErvVentilationModeSelect(SelectEntity):
         """Change the selected option."""
         set_dict = {"ventilation_mode": option}
         await self._device.set(set_dict)
+        await self.api.coordinator.async_request_refresh()

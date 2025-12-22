@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from aiohttp import ClientConnectionError, ClientResponseError
 from pymelcloud import Device, get_devices
@@ -23,7 +23,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo
@@ -185,7 +185,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Establish connection with MELCloud."""
     conf = entry.data
     if CONF_TOKEN not in conf:
@@ -196,9 +196,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     update_seconds = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     _LOGGER.info("Configured scan interval: %s seconds", update_seconds)
 
-    mel_devices = await mel_devices_setup(
-        hass, token, timedelta(seconds=update_seconds)
-    )
+    try:
+        mel_devices = await mel_devices_setup(
+            hass, token, timedelta(seconds=update_seconds)
+        )
+    except ClientResponseError as ex:
+        if ex.status in (401, 403):
+            raise ConfigEntryAuthFailed from ex
+        raise ConfigEntryNotReady from ex
+    except (TimeoutError, ClientConnectionError) as ex:
+        raise ConfigEntryNotReady from ex
 
     entry.async_on_unload(entry.add_update_listener(update_listener))
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {}).update(
@@ -211,7 +218,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     if unload_ok := await hass.config_entries.async_unload_platforms(
         config_entry, PLATFORMS
@@ -277,7 +284,7 @@ class MelCloudDevice:
             self._coordinator.update_interval = update_interval
             self._coordinator.async_set_updated_data(None)
 
-    async def async_set(self, properties: Dict[str, Any]):
+    async def async_set(self, properties: dict[str, Any]) -> None:
         """Write state changes to the MELCloud API."""
         try:
             await self.device.set(properties)
@@ -314,19 +321,19 @@ class MelCloudDevice:
         return self._dev_conf
 
     @property
-    def wifi_signal(self) -> Optional[int]:
+    def wifi_signal(self) -> int | None:
         """Return wifi signal."""
         return self.device_conf.get("WifiSignalStrength")
 
     @property
-    def error_state(self) -> Optional[bool]:
+    def error_state(self) -> bool | None:
         """Return error_state."""
         if not self.device_conf:
             return None
         return self.device_conf.get("HasError", False)
 
     @property
-    def has_wide_van(self) -> Optional[bool]:
+    def has_wide_van(self) -> bool | None:
         """Return has wide van info."""
         return self.device_conf.get("HasWideVane", False)
 

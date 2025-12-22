@@ -18,6 +18,14 @@
                 },
                 "description": "Connect using your MELCloud account.",
                 "title": "Connect to MELCloud"
+            },
+            "reauth_confirm": {
+                "data": {
+                    "password": "MELCloud password",
+                    "language": "Language"
+                },
+                "description": "Re-authenticate with MELCloud to renew access.",
+                "title": "Re-authenticate to MELCloud"
             }
         }
     },
@@ -31,4 +39,3 @@
         }
     }
 }
-

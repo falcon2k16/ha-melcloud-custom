@@ -1,7 +1,9 @@
 """Platform for fan - erv integration."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from pymelcloud import DEVICE_TYPE_ERV, ErvDevice
 from pymelcloud.device import PROPERTY_POWER
@@ -71,6 +73,10 @@ class ErvDeviceFan(FanEntity):
         """Return a device description for device registry."""
         return self.api.device_info
 
+    async def async_update(self) -> None:
+        """Update state from the coordinator."""
+        await self.api.coordinator.async_request_refresh()
+
     @property
     def preset_mode(self) -> str | None:
         """Set preset mode on ERV."""
@@ -123,73 +129,79 @@ class ErvDeviceFan(FanEntity):
         return len(ORDERED_NAMED_FAN_SPEEDS)
 
     @property
-    def percentage(self) -> Optional[int]:
+    def percentage(self) -> int | None:
         """Return the current speed percentage."""
+        if not self._device.power:
+            return 0
         speed = self._device.fan_speed
+        if speed is None:
+            return None
         percentage = ordered_list_item_to_percentage(ORDERED_NAMED_FAN_SPEEDS, speed)
         _LOGGER.debug("Current percentage is %s", percentage)
         return percentage
 
     async def async_turn_on(
         self,
-        speed: Optional[str] = None,
-        percentage: Optional[int] = None,
-        preset_mode: Optional[str] = None,
+        percentage: int | None = None,
+        preset_mode: str | None = None,
         **kwargs: Any,
-    ):
+    ) -> None:
         """Turn the entity on."""
-        _LOGGER.debug("Current powering on")
-        power = await self._device.set({PROPERTY_POWER: True})
-        _LOGGER.debug("Current state is %s", power)
-        if speed:
-            await self.async_set_speed(speed)
-        if percentage:
-            await self.async_set_percentage(percentage)
-        if preset_mode:
-            await self.async_set_preset_mode(preset_mode)
-        curr_state = self._device.power
-        _LOGGER.debug("Current state after on is %s", curr_state)
+        _LOGGER.debug("Powering on")
 
-    async def async_turn_off(self):
+        # Build the set dictionary with all changes at once
+        props = {PROPERTY_POWER: True}
+
+        # Determine the fan speed to set
+        if preset_mode is not None:
+            props[erv.PROPERTY_FAN_SPEED] = preset_mode
+        elif percentage is not None and percentage > 0:
+            named_speed = percentage_to_ordered_list_item(
+                ORDERED_NAMED_FAN_SPEEDS, percentage
+            )
+            props[erv.PROPERTY_FAN_SPEED] = named_speed
+
+        # Apply all changes in a single API call
+        await self._device.set(props)
+        await self.api.coordinator.async_request_refresh()
+        _LOGGER.debug("Power state after turn on: %s", self._device.power)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        _LOGGER.debug("Current powering off")
-        power = await self._device.set({PROPERTY_POWER: False})
-        _LOGGER.debug("Current state is %s", power)
-        curr_state = self._device.power
-        _LOGGER.debug("Current state after off is %s", curr_state)
-        return curr_state
+        _LOGGER.debug("Powering off")
+        await self._device.set({PROPERTY_POWER: False})
+        await self.api.coordinator.async_request_refresh()
+        _LOGGER.debug("Power state after turn off: %s", self._device.power)
 
-    async def async_toggle(self) -> None:
+    async def async_toggle(self, **kwargs: Any) -> None:
         """Toggle the fan."""
-        state = self._device.power()
-        if not state:
-            await self.async_turn_on()
+        if self._device.power:
+            await self.async_turn_off()
         else:
             await self.async_turn_on()
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the preset mode of the fan."""
-        if preset_mode is not None:
-            await self._device.set({erv.PROPERTY_FAN_SPEED: preset_mode})
-        else:
-            await self.async_turn_off()
+        _LOGGER.debug("Setting preset mode to: %s", preset_mode)
+        props = {erv.PROPERTY_FAN_SPEED: preset_mode}
 
-    async def async_set_speed(self, percentage: int) -> None:
-        """Set the speed percentage of the fan."""
-        if percentage != 0:
-            named_speed = percentage_to_ordered_list_item(
-                ORDERED_NAMED_FAN_SPEEDS, percentage
-            )
-            await self.async_set_preset_mode(named_speed)
-        else:
-            await self.async_turn_off()
+        # Ensure the fan is on when setting a preset mode
+        if not self._device.power:
+            props[PROPERTY_POWER] = True
+
+        await self._device.set(props)
+        await self.api.coordinator.async_request_refresh()
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
-        if percentage != 0:
-            named_speed = percentage_to_ordered_list_item(
-                ORDERED_NAMED_FAN_SPEEDS, percentage
-            )
-            await self.async_set_preset_mode(named_speed)
-        else:
+        _LOGGER.debug("Setting speed percentage to: %s", percentage)
+
+        if percentage == 0:
             await self.async_turn_off()
+            return
+
+        # Convert percentage to named speed
+        named_speed = percentage_to_ordered_list_item(
+            ORDERED_NAMED_FAN_SPEEDS, percentage
+        )
+        await self.async_set_preset_mode(named_speed)

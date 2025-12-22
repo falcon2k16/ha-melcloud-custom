@@ -1,15 +1,19 @@
 """Config flow for the MELCloud platform."""
 
+from __future__ import annotations
+
 import asyncio
+from collections.abc import Mapping
 from http import HTTPStatus
 import logging
+from typing import Any
 
 from aiohttp import ClientError, ClientResponseError
-from async_timeout import timeout
 import pymelcloud
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import (
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -55,9 +59,8 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
     VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
 
-    async def _create_entry(self, username: str, token: str):
+    async def _create_entry(self, username: str, token: str) -> ConfigFlowResult:
         """Register new entry."""
         await self.async_set_unique_id(username)
         self._abort_if_unique_id_configured({CONF_TOKEN: token})
@@ -66,19 +69,21 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             data={CONF_TOKEN: token},
         )
 
-    async def _create_client(self, user_input):
+    async def _create_client(
+        self, user_input: dict[str, Any]
+    ) -> ConfigFlowResult:
         """Create client."""
         username = user_input[CONF_USERNAME]
         password = user_input[CONF_PASSWORD]
         language = user_input[CONF_LANGUAGE]
 
-        if password is None:  # and token is None:
+        if password is None:
             raise ValueError(
                 "Invalid internal state. Called without password",
             )
 
         try:
-            async with timeout(10):
+            async with asyncio.timeout(10):
                 token = await self._test_authorization(username, password, language)
                 if not token:
                     return self._show_form({"base": "invalid_auth"})
@@ -91,25 +96,32 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if err.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
                 return self._show_form({"base": "invalid_auth"})
             return self._show_form({"base": "cannot_connect"})
-        except (asyncio.TimeoutError, ClientError):
+        except (TimeoutError, ClientError):
             return self._show_form({"base": "cannot_connect"})
 
         return await self._create_entry(username, token)
 
-    async def _test_authorization(self, username, password, language):
+    async def _test_authorization(
+        self, username: str, password: str, language: str
+    ) -> str | None:
+        """Test authorization with MELCloud."""
         mcauth = MelCloudAuthentication(username, password, LANGUAGES[language])
         if await mcauth.login(self.hass):
             return mcauth.auth_token
         return None
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """User initiated config flow."""
         if user_input is None:
             return self._show_form()
 
         return await self._create_client(user_input)
 
-    async def async_step_import(self, import_config):
+    async def async_step_import(
+        self, import_config: dict[str, Any]
+    ) -> ConfigFlowResult:
         """Import a config entry."""
         username = import_config[CONF_USERNAME]
         for unique_id in self._async_current_ids():
@@ -118,13 +130,62 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         return await self._create_client(import_config)
 
     @callback
-    def _show_form(self, errors=None):
+    def _show_form(self, errors: dict[str, str] | None = None) -> ConfigFlowResult:
         """Show the form to the user."""
-
         return self.async_show_form(
             step_id="user",
             data_schema=MELCLOUD_SCHEMA,
             errors=errors if errors else {},
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Handle initiation of re-authentication with MELCloud."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle re-authentication with MELCloud."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            reauth_entry = self._get_reauth_entry()
+            username = reauth_entry.data.get(CONF_USERNAME)
+            if not username:
+                # If username not in data, try to get from unique_id
+                username = reauth_entry.unique_id
+            password = user_input[CONF_PASSWORD]
+            language = user_input.get(CONF_LANGUAGE, "EN")
+
+            try:
+                async with asyncio.timeout(10):
+                    token = await self._test_authorization(username, password, language)
+                    if not token:
+                        errors["base"] = "invalid_auth"
+                    else:
+                        return self.async_update_reload_and_abort(
+                            reauth_entry,
+                            data={CONF_TOKEN: token},
+                        )
+            except ClientResponseError as err:
+                if err.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                    errors["base"] = "invalid_auth"
+                else:
+                    errors["base"] = "cannot_connect"
+            except (TimeoutError, ClientError):
+                errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PASSWORD): str,
+                    vol.Optional(CONF_LANGUAGE, default="EN"): vol.In(LANGUAGES.keys()),
+                }
+            ),
+            errors=errors,
         )
 
     @staticmethod

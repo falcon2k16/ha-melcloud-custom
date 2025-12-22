@@ -1,3 +1,7 @@
+# FORK of MELCloud HomeAssistant custom component
+Added support for ERV devices with usage of newer PyMelCloud library version.
+This patch was used for my own ERV device, so may not work for all models.
+
 # MELCloud HomeAssistant custom component
 A full featured Homeassistant custom component to drive MELCloud ATA and ATW devices.
 
@@ -16,7 +20,7 @@ I just added some features to the existing native components, waiting for the sa
 
 1. Added some attributes to the sensors to provide additional information (SerialNo, Unit Info, etc)
 
-## Component setup    
+## Component setup
 Once the component has been installed, you need to configure it in order to make it work.
 There are two ways of doing so:
 - Using the web interface (Lovelace) [**recommended**]
@@ -26,18 +30,18 @@ There are two ways of doing so:
 Simply add a new "integration" and look for "MELCloud Custom" among the proposed ones. Do not confuse with "MELCloud" that is the native one!
 
 #### Option B: Configuration via editing configuration.yaml
-Follow these steps only if the previous configuration method did not work for you. 
+Follow these steps only if the previous configuration method did not work for you.
 
 1. Setup your MELCloud credentials. Edit/create the `secrets.yaml` file,
  which is located within the config directory as well. Add the following:
- 
+
      ```
     melcloud_username: my_melcloud_email@domain.com
     melcloud_password: my_melcloud_password
     ```
-    
-    Where "my_melcloud_email@domain.com" is your MELCloud account email and "my_melcloud_password" is the associated password. 
- 
+
+    Where "my_melcloud_email@domain.com" is your MELCloud account email and "my_melcloud_password" is the associated password.
+
 1. Enable the component by editing the configuration.yaml file (within the config directory as well).
 Edit it by adding the following lines:
     ```
@@ -46,9 +50,9 @@ Edit it by adding the following lines:
       password: !secret melcloud_password
       language: my_melcloud_language
     ```
-    
-    Where "my_melcloud_language" is your MELCloud account language and can be one of the following (eg: EN): 
-    
+
+    Where "my_melcloud_language" is your MELCloud account language and can be one of the following (eg: EN):
+
         EN = English
         BG = Bulgarian
         CS = Czech
@@ -76,9 +80,8 @@ Edit it by adding the following lines:
         RO = Romanian
         SL = Slovenian
 
-**Note!** In this case you do not need to replace "!secret melcloud_username" and "!secret melcloud_password". 
-Those are place holders that homeassistant automatically replaces by looking at the secrets.yaml file. 
+**Note!** In this case you do not need to replace "!secret melcloud_username" and "!secret melcloud_password".
+Those are place holders that homeassistant automatically replaces by looking at the secrets.yaml file.
 
 1. Reboot hpme assistant
 1. Congrats! You're all set!
-

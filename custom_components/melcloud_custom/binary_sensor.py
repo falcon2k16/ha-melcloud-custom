@@ -7,7 +7,8 @@ from dataclasses import dataclass
 import logging
 from typing import Any
 
-from pymelcloud import DEVICE_TYPE_ATA
+from custom_components.melcloud_custom.sensor import MelDeviceSensor
+from pymelcloud import DEVICE_TYPE_ATA, DEVICE_TYPE_ERV
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -48,6 +49,31 @@ ATA_BINARY_SENSORS: tuple[MelcloudBinarySensorEntityDescription, ...] = (
     ),
 )
 
+ERV_BINARY_SENSORS: tuple[MelcloudBinarySensorEntityDescription, ...] = (
+    MelcloudBinarySensorEntityDescription(
+        key="error_state",
+        name="Error State",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        value_fn=lambda x: x.error_state,
+        enabled=lambda x: True,
+    ),
+    MelcloudBinarySensorEntityDescription(
+        key="filter_maintenance_required",
+        name="Filter Maintenance Required",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        value_fn=lambda x: x.device.filter_maintenance_required,
+        enabled=lambda x: True,
+    ),
+    MelcloudBinarySensorEntityDescription(
+        key="core_maintenance_required",
+        name="Core Maintenance Required",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        value_fn=lambda x: x.device.core_maintenance_required,
+        enabled=lambda x: True,
+    ),
+
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -64,6 +90,12 @@ async def async_setup_entry(
             MelDeviceBinarySensor(mel_device, description)
             for description in ATA_BINARY_SENSORS
             for mel_device in mel_devices[DEVICE_TYPE_ATA]
+            if description.enabled(mel_device)
+        ]
+        + [
+            MelDeviceBinarySensor(mel_device, description)
+            for description in ERV_BINARY_SENSORS
+            for mel_device in mel_devices[DEVICE_TYPE_ERV]
             if description.enabled(mel_device)
         ]
     )
